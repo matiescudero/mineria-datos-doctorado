@@ -12,7 +12,7 @@ library(tidyverse)
 ## Contenido del DataFrame
 
 allhyper_df = read_csv("data/allhyper.data",
-                    col_names = FALSE)
+                       col_names = FALSE)
 
 
 ## Se extraen los nombres de las columnas extraídas a partir del archivo allhyper.names
