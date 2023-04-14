@@ -3,11 +3,11 @@
 # Alumnos: Matías Escudero, Joaquín Macías
 # Doctorado en Ciencias de la Ingeniería con Mención en Informática - USACH
 
-### LIBRERÍAS ###
+#### LIBRERÍAS ####
 library(readr)
 library(tidyverse)
 
-### ENTRADAS ###
+#### ENTRADAS ####
 
 ## Contenido del DataFrame
 
@@ -26,4 +26,5 @@ column_names = c(column_names, "class") # Se añade la columna "class" que no se
 colnames(allhyper_df) = column_names
 
 
+#### PRE-PROCESAMIENTO ####
 
