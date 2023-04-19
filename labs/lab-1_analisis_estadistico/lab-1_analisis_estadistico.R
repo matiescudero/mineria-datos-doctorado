@@ -8,6 +8,7 @@
 library(readr)
 library(tidyverse)
 library(xtable)
+library(dlookr)
 
 #### ENTRADAS ####
 
@@ -61,10 +62,10 @@ print(numeric_latex_table, type = "latex", include.rownames = FALSE)
 
 ## VARIABLES CATEGÓRICAS
 
-# Filtro para variables categóricas
+## Filtro para variables categóricas
 categorical_vars = allhyper_df %>% select(where(is.character))
 
-# Se calcula la frecuencia y el porcentaje para cada variable categórica
+## Se calcula la frecuencia y el porcentaje para cada variable categórica
 sex_freq = table(allhyper_df$sex, useNA = "always")
 sex_perc = prop.table(sex_freq) * 100
 
@@ -88,4 +89,31 @@ categorical_summary$percentage = round(categorical_summary$percentage, 2)
 # Se exporta a formato LaTeX
 categorical_latex_table = xtable(categorical_summary, caption = "Resumen estadístico variables categóricas.")
 print(categorical_latex_table, type = "latex", include.rownames = FALSE)
+
+## VARIABLES BOOLEANAS
+
+# Filtro para variables booleanas
+boolean_vars = allhyper_df %>% select(where(is.logical))
+
+# Se calculan las frecuencias y porcentajes de los valores True y False para cada variable
+boolean_summary_long = gather(boolean_vars, key = "variable", value = "value")
+boolean_summary_grouped = group_by(boolean_summary_long, variable, value)
+boolean_summary = summarise(boolean_summary_grouped, frequency = n(), percentage = round((frequency / sum(n())) * 100, 2))
+
+# Se cambia el formato de la tabla de resumen
+boolean_summary_wide = boolean_summary %>%
+  spread(value, frequency) %>%
+  rename(count_true = "TRUE", count_false = "FALSE")
+
+# Columnas de porcentaje
+boolean_summary_wide$true_ptje = round((boolean_summary_wide$count_true / (boolean_summary_wide$count_true + boolean_summary_wide$count_false)) * 100, 2)
+boolean_summary_wide$false_ptje = round((boolean_summary_wide$count_false / (boolean_summary_wide$count_true + boolean_summary_wide$count_false)) * 100, 2)
+
+# Se elimina la columna de porcentaje
+boolean_summary_wide$percentage = NULL
+
+# Se exporta la tabla a formato LaTeX
+boolean_latex_table = xtable(boolean_summary_wide, caption = "Resumen estadístico variables booleanas.")
+print(boolean_latex_table, type = "latex", include.rownames = FALSE)
+
 
