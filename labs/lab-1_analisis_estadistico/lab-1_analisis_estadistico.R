@@ -8,7 +8,10 @@
 library(readr)
 library(tidyverse)
 library(xtable)
-library(dlookr)
+#library(dlookr)
+library(GGally)
+library(RColorBrewer)
+library(gridExtra)
 
 #### ENTRADAS ####
 
@@ -116,4 +119,74 @@ boolean_summary_wide$percentage = NULL
 boolean_latex_table = xtable(boolean_summary_wide, caption = "Resumen estadístico variables booleanas.")
 print(boolean_latex_table, type = "latex", include.rownames = FALSE)
 
+#### Análisis Gráfico ####
 
+## VARIABLES NUMÉRICAS
+
+# Se genera una lista para almacenar los gráficos individuales
+plots_list = list()
+
+for (var in colnames(numeric_vars)) {
+  p = ggplot(numeric_vars, aes_string(x = "1", y = var, fill = "1")) +
+    geom_violin(show.legend = FALSE) +
+    scale_fill_gradient(low = "#66C2A5", high = "#FC8D62") +
+    labs(title = var,
+         x = "",
+         y = "Valores") +
+    theme_minimal() +
+    theme(axis.text.x = element_blank(),
+          axis.ticks.x = element_blank(),
+          plot.margin = margin(5, 5, 5, 5),
+          plot.title = element_text(size = 10, hjust = 0.5),
+          legend.position = "none")
+  
+  # Se generan excepciones para descartar los outliers extremos que dificultan la correcta visualización.
+  
+  if (var == "TSH") {
+    p = p + coord_cartesian(ylim = c(0, 50))
+  }
+  
+  if (var == "age"){
+    p = p + coord_cartesian(ylim = c(0, 110))
+  }
+  
+  plots_list[[var]] <- p
+}
+
+# Se juntan los gráfico de violín en una cuadrícula
+grid.arrange(grobs = plots_list, ncol = 2)
+
+## VARIABLES CATEGÓRICAS
+
+# Se reestructura el dataframe de variables categoricas
+categorical_vars_long = categorical_vars %>% 
+  mutate(id = row_number()) %>% 
+  gather(key = "variable", value = "value", -id)
+
+# Se generar gráficos de barra agrupados utilizando facet_wrap
+bar_plots = ggplot(categorical_vars_long, aes(x = value)) +
+  geom_bar(aes(fill = value), show.legend = FALSE) +
+  facet_wrap(~ variable, scales = "free", nrow = 1) +
+  labs(x = "",
+       y = "Frecuencia") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)),
+        strip.background = element_blank(),
+        strip.text = element_text(size = 12, face = "bold"))
+
+## Se imprimen para guardar la imagen
+print(bar_plots)
+
+
+#### ANÁLISIS CORRELACIÓN ####
+
+# Se eliminar filas con na's para evitar errores
+
+numeric_vars_sin_na <- numeric_vars[complete.cases(numeric_vars), ]
+
+# Se genera un pair plot con histogramas, scatter plots y coef de correlación de pearson
+ggpairs(numeric_vars_sin_na,
+        lower = list(continuous = wrap("points", alpha = 0.5)),
+        upper = list(continuous = wrap("cor", size = 6, hjust = 0.5, vjust = 0.5)),
+        diag = list(continuous = wrap("barDiag", bins = 30)))
