@@ -123,6 +123,12 @@ print(boolean_latex_table, type = "latex", include.rownames = FALSE)
 
 ## VARIABLES NUMÉRICAS
 
+# En primera instancia, se limpian los valores atípicos de edad debido a su naturaleza
+numeric_vars = numeric_vars[(numeric_vars$age < 110),]
+
+# Se eliminan valores atípicos de la variable TSH
+numeric_vars = numeric_vars[(numeric_vars$TSH < 100),]
+
 # Se genera una lista para almacenar los gráficos individuales
 plots_list = list()
 
@@ -140,21 +146,17 @@ for (var in colnames(numeric_vars)) {
           plot.title = element_text(size = 10, hjust = 0.5),
           legend.position = "none")
   
-  # Se generan excepciones para descartar los outliers extremos que dificultan la correcta visualización.
-  
-  if (var == "TSH") {
-    p = p + coord_cartesian(ylim = c(0, 50))
-  }
-  
-  if (var == "age"){
-    p = p + coord_cartesian(ylim = c(0, 110))
-  }
-  
-  plots_list[[var]] <- p
+  plots_list[[var]] = p
 }
 
 # Se juntan los gráfico de violín en una cuadrícula
 grid.arrange(grobs = plots_list, ncol = 2)
+
+
+# Se terminan de eliminar outliers a partir de la visualización de los gráficos
+numeric_vars = numeric_vars[(numeric_vars$T3 < 10),]
+numeric_vars = numeric_vars[(numeric_vars$TT4 < 400),]
+numeric_vars = numeric_vars[(numeric_vars$FTI < 300),]
 
 ## VARIABLES CATEGÓRICAS
 
