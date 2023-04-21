@@ -177,7 +177,7 @@ bar_plots = ggplot(categorical_vars_long, aes(x = value)) +
         strip.background = element_blank(),
         strip.text = element_text(size = 12, face = "bold"))
 
-## Se imprimen para guardar la imagen
+# Se imprimen para guardar la imagen
 print(bar_plots)
 
 
@@ -192,3 +192,50 @@ ggpairs(numeric_vars_sin_na,
         lower = list(continuous = wrap("points", alpha = 0.5)),
         upper = list(continuous = wrap("cor", size = 6, hjust = 0.5, vjust = 0.5)),
         diag = list(continuous = wrap("barDiag", bins = 30)))
+
+#### PRUEBAS DE WELCH
+
+# En vista de que se trabajó con DF's separados por tipos de variables, se aplican todos los filtros
+# hechos anteriormente sobre el DF original.
+
+allhyper_df$TBG = NULL
+allhyper_df$TBG_measured = NULL
+
+allhyper_df = subset(allhyper_df, 
+                      age < 110 & 
+                        TSH < 100 & 
+                        T3 < 10 & 
+                        TT4 < 400 & 
+                        FTI < 300)
+
+
+## CASO 1:
+# H0: El tratamiento de litio disminuyendo la disponibilidad de T3 en pacientes 
+# con este tipo de tratamiento (carbonato de litio)
+# H1: El tratamiento de litio no disminuye la disponibilidad de T3 en pacientes
+# con este tipo de tratamiento (carbonato de litio).
+
+# Se separa el DF en pacientes que han recibido tratamiento de Litio y los que no
+patients_on_lithium = allhyper_df[allhyper_df$lithium == TRUE, ]
+patients_no_lithium = allhyper_df[allhyper_df$lithium == FALSE, ]
+
+# Se realiza la prueba t de Welch
+welch_test_case1 = t.test(patients_on_lithium$T3, patients_no_lithium$T3, alternative = "two.sided")
+
+# Se muestran los resultados
+welch_test_case1
+
+## CASO 2:
+# H0: El uso de tiroxina no afecta significativamente los niveles de TSH en pacientes.
+# H1: El uso de tiroxina afecta significativamente los niveles de TSH en pacientes.
+
+# Se separa el DF en paciente que estén tomando tiroxina y en quienes no.
+patients_on_thy = allhyper_df[allhyper_df$on_thyroxine == TRUE,]
+patients_no_thy = allhyper_df[allhyper_df$on_thyroxine == FALSE,]
+
+# Se realiza la prueba t de Welch
+welch_test_case2 = t.test(patients_on_thy$TSH, patients_no_thy$TSH, alternative = "two.sided")
+
+# Se muestran los resultados
+welch_test_case2
+
