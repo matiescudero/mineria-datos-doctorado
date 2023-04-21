@@ -8,7 +8,6 @@
 library(readr)
 library(tidyverse)
 library(xtable)
-#library(dlookr)
 library(GGally)
 library(RColorBrewer)
 library(gridExtra)
@@ -180,8 +179,11 @@ bar_plots = ggplot(categorical_vars_long, aes(x = value)) +
 # Se imprimen para guardar la imagen
 print(bar_plots)
 
+# ESTO NO SE INCLUYÓ EN EL INFORME POR SOBREPASAR MÁXIMO DE PÁGINAS.
 
 #### ANÁLISIS CORRELACIÓN ####
+
+## Se eliminan los registros en donde la clase sea "goitre" o "T3 Toxic"
 
 # Se eliminar filas con na's para evitar errores
 
@@ -193,8 +195,6 @@ ggpairs(numeric_vars_sin_na,
         upper = list(continuous = wrap("cor", size = 6, hjust = 0.5, vjust = 0.5)),
         diag = list(continuous = wrap("barDiag", bins = 30)))
 
-#### PRUEBAS DE WELCH
-
 # En vista de que se trabajó con DF's separados por tipos de variables, se aplican todos los filtros
 # hechos anteriormente sobre el DF original.
 
@@ -202,12 +202,67 @@ allhyper_df$TBG = NULL
 allhyper_df$TBG_measured = NULL
 
 allhyper_df = subset(allhyper_df, 
-                      age < 110 & 
-                        TSH < 100 & 
-                        T3 < 10 & 
-                        TT4 < 400 & 
-                        FTI < 300)
+                     age < 110 & 
+                       TSH < 100 & 
+                       T3 < 10 & 
+                       TT4 < 400 & 
+                       FTI < 300 &
+                       (class_name %in% c("negative.", "hyperthyroid.")))
 
+# Se reclasifica la variable de hipertiroidismo
+allhyper_df$hyperthyroidism = ifelse(allhyper_df$class_name == "hyperthyroid.", TRUE, FALSE)
+
+# Se elimina la variable anterior
+allhyper_df$class_name = NULL
+
+## Boxplots para variables numéricas en relación a hipertiroidismo
+# Se obtienen los nombres de columnas numéricas a partir del df generado anteriormente
+numeric_variables = colnames(numeric_vars)
+
+# Cambio de formato para el DF 
+hyper_long = allhyper_df %>%
+  select(hyperthyroidism, one_of(numeric_variables)) %>%
+  gather(key = "variable", value = "value", -hyperthyroidism)
+
+# Se genera el gráfico
+hyper_box = ggplot(hyper_long, aes(x = hyperthyroidism, y = value, group = hyperthyroidism)) +
+  geom_boxplot(fill = "#66C2A5") +
+  facet_wrap(~variable, scales = "free_y", ncol = 2) +
+  labs(title = "Boxplots variables numéricas vs. hipertiroidismo",
+       x = "Hipertiroidismo",
+       y = "Valor")
+
+print(hyper_box)
+
+## Prueba chi cuadrado
+
+# Crear un vector con los nombres de las variables categóricas y booleanas
+vars_chi2 = c("sex", "on_thyroxine", "query_on_thyroxine", "on_antithyroid_medication", "sick", "pregnant", "thyroid_surgery", 
+                "I131_treatment", "query_hypothyroid", "query_hyperthyroid", 
+                "lithium", "goitre", "tumor", "hypopituitary", "psych", "TSH_measured", "T3_measured", 
+                "TT4_measured", "T4U_measured", "FTI_measured")
+
+# DF que almacenará los resultados de los p values
+chi2_df = data.frame(variable = character(), p_value = numeric())
+
+# Se calcula la prueba de chi-cuadrado para cada variable y se agregan los resultados al data.frame
+for (variable in vars_chi2) {
+  tabla_contingencia = table(allhyper_df[[variable]], allhyper_df$hyperthyroidism)
+  chi2_test = chisq.test(tabla_contingencia)
+  
+  chi2_df = chi2_df %>%
+    add_row(variable = variable, p_value = chi2_test$p.value)
+}
+
+# Se ordena el DF por p_value
+chi2_df = chi2_df %>%
+  arrange(p_value)
+
+# Se exporta la tabla a formato LaTeX
+chi2_latex = xtable(chi2_df, caption = "Valores de p-value para pruebas de independencia chi cuadrado")
+print(chi2_latex, type = "latex", include.rownames = FALSE)
+
+#### PRUEBAS DE WELCH ####
 
 ## CASO 1:
 # H0: El tratamiento de litio disminuyendo la disponibilidad de T3 en pacientes 
@@ -239,3 +294,14 @@ welch_test_case2 = t.test(patients_on_thy$TSH, patients_no_thy$TSH, alternative 
 # Se muestran los resultados
 welch_test_case2
 
+#### Regresión Logística ####
+
+# Se crea un modelo con todas las variables candidatas de acuerdo al análisis previo
+full_model = glm(hyperthyroidism ~ age + FTI + T3 + T4U + TSH + TT4 + TSH_measured + T3_measured + TT4_measured + FTI_measured + query_hyperthyroid + sex,
+                 data = allhyper_df, family = binomial(link = "logit"))
+
+# Se utiliza selección de vriables stepwise
+selected_model = step(full_model, direction = "both")
+
+# Se visualizan los resultados del modelo seleccionado
+summary(selected_model)
