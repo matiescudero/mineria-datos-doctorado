@@ -20,6 +20,9 @@ library(visdat)
 library(corrplot)
 library(ggcorrplot)
 library(mice)
+library(factoextra)
+library(cluster)
+library(purrr)
 
 #### ENTRADAS ####
 
@@ -133,24 +136,162 @@ df_imputed$T4U = complete(temp_data,1)$T4U
 df_imputed$sex = ifelse(df_imputed$sex == 'M', 1, 0)
 
 # Se convierten las columnas booleanas a numéricas
-df_imputed$on_thyroxine <- as.numeric(df_imputed$on_thyroxine)
-df_imputed$query_on_thyroxine <- as.numeric(df_imputed$query_on_thyroxine)
-df_imputed$on_antithyroid_medication <- as.numeric(df_imputed$on_antithyroid_medication)
-df_imputed$sick <- as.numeric(df_imputed$sick)
-df_imputed$pregnant <- as.numeric(df_imputed$pregnant)
-df_imputed$thyroid_surgery <- as.numeric(df_imputed$thyroid_surgery)
-df_imputed$I131_treatment <- as.numeric(df_imputed$I131_treatment)
-df_imputed$query_hypothyroid <- as.numeric(df_imputed$query_hypothyroid)
-df_imputed$query_hyperthyroid <- as.numeric(df_imputed$query_hyperthyroid)
-df_imputed$lithium <- as.numeric(df_imputed$lithium)
-df_imputed$goitre <- as.numeric(df_imputed$goitre)
-df_imputed$tumor <- as.numeric(df_imputed$tumor)
-df_imputed$hypopituitary <- as.numeric(df_imputed$hypopituitary)
-df_imputed$psych <- as.numeric(df_imputed$psych)
-df_imputed$TSH_measured <- as.numeric(df_imputed$TSH_measured)
-df_imputed$T3_measured <- as.numeric(df_imputed$T3_measured)
-df_imputed$TT4_measured <- as.numeric(df_imputed$TT4_measured)
-df_imputed$T4U_measured <- as.numeric(df_imputed$T4U_measured)
-df_imputed$FTI_measured <- as.numeric(df_imputed$FTI_measured)
-df_imputed$TBG_measured <- as.numeric(df_imputed$TBG_measured)
+df_imputed$on_thyroxine = as.numeric(df_imputed$on_thyroxine)
+df_imputed$query_on_thyroxine = as.numeric(df_imputed$query_on_thyroxine)
+df_imputed$on_antithyroid_medication = as.numeric(df_imputed$on_antithyroid_medication)
+df_imputed$sick = as.numeric(df_imputed$sick)
+df_imputed$pregnant = as.numeric(df_imputed$pregnant)
+df_imputed$thyroid_surgery = as.numeric(df_imputed$thyroid_surgery)
+df_imputed$I131_treatment = as.numeric(df_imputed$I131_treatment)
+df_imputed$query_hypothyroid = as.numeric(df_imputed$query_hypothyroid)
+df_imputed$query_hyperthyroid = as.numeric(df_imputed$query_hyperthyroid)
+df_imputed$lithium = as.numeric(df_imputed$lithium)
+df_imputed$goitre = as.numeric(df_imputed$goitre)
+df_imputed$tumor = as.numeric(df_imputed$tumor)
+df_imputed$hypopituitary = as.numeric(df_imputed$hypopituitary)
+df_imputed$psych = as.numeric(df_imputed$psych)
+df_imputed$TSH_measured = as.numeric(df_imputed$TSH_measured)
+df_imputed$T3_measured = as.numeric(df_imputed$T3_measured)
+df_imputed$TT4_measured = as.numeric(df_imputed$TT4_measured)
+df_imputed$T4U_measured = as.numeric(df_imputed$T4U_measured)
+df_imputed$FTI_measured = as.numeric(df_imputed$FTI_measured)
+
+
+# Se eliminan las columnas irrelevantes
+df_imputed$TBG_measured = NULL
+df_imputed$referral_source = NULL
+
+# Se borran las filas donde la clase es 'goitre'
+df_imputed = df_imputed[!(df_imputed$class_name == 'goitre.'),]
+
+# Reclasificamos 'T3 toxic' y 'hyperthyroid' como 1 (hipertiroidismo) y 'negative' como 0 (negativo)
+df_imputed$class[df_imputed$class_name %in% c('T3 toxic.', 'hyperthyroid.')] = 1
+df_imputed$class[df_imputed$class_name == 'negative.'] = 0
+
+# Se elimina la columna class_name
+df_imputed$class_name = NULL
+
+# Se cambia el nombre de la variable class por hyperthiroid
+colnames(df_imputed)[27] = 'hyperthiroid'
+
+
+## Se cambia el valor de 455 de la columna age por el promedio
+# Se identifica la fila donde age es 455
+index <- which(df_imputed$age == 455)
+# Se calcula el promedio de la columna age (sin incluir el valor 455)
+mean_age <- mean(df_imputed$age[df_imputed$age != 455])
+# se reemplaza el valor 455 por el promedio
+df_imputed$age[index] <- mean_age
+
+### NORMALIZACIÓN ###
+
+## Se crea una función de normalización de columnas con el método min-max
+
+normalize_column <- function(df, column_name){
+  
+  # Se obtiene la columna a normalizar
+  column = df[[column_name]]
+  
+  # Aplica la normalización min-max
+  min_val = min(column)  # Encuentra el valor mínimo
+  max_val = max(column)  # Encuentra el valor máximo
+  df[[column_name]] = (column - min_val) / (max_val - min_val)  # Normaliza la columna
+  
+  return(df)  # Devuelve el dataframe actualizado
+}
+
+# Se copia el DF que contiene los valores originales
+df_normalized = df_imputed
+
+# Se normalizan las columnas numéricas
+df_normalized = normalize_column(df_normalized, 'age')
+df_normalized = normalize_column(df_normalized, 'TSH')
+df_normalized = normalize_column(df_normalized, 'T3')
+df_normalized = normalize_column(df_normalized, 'TT4')
+df_normalized = normalize_column(df_normalized, 'T4U')
+df_normalized = normalize_column(df_normalized, 'FTI')
+
+
+
+#### CLUSTERIZACIÓN ####
+
+### Elección de K ###
+
+# Trazar el total de la suma de cuadrados en función de k
+fviz_nbclust(df_normalized, FUNcluster = pam, diss = dist(df_normalized, method = "manhattan"), method = "wss") +
+    geom_vline(xintercept = 3, linetype = 2) +
+  labs(title = "Número óptimo de clusters",
+    subtitle = "Método del Codo",
+    x = "Número de clusters",
+    y = "Suma total de cuadrados dentro")
+
+
+
+### Resultados ###
+
+
+## K-means ##
+# Se ejecuta el modelo para el número óptimo
+clusters3_model = pam(df_normalized, 3, diss = FALSE, metric = "manhattan")
+
+# Asignar los clusters a los datos
+df_normalized$cluster3 = clusters3_model$clustering
+
+# Gráfico de pacientes por cluster
+ggplot(df_imputed, aes(x = factor(cluster3))) +
+  geom_bar(fill = "steelblue") +
+  labs(
+    x = "Cluster",
+    y = "N° Pacientes",
+    title = "Número de pacientes por cluster"
+  ) +
+  theme_minimal()
+
+
+
+## Se pasan las variables de clusterización al DF original y así facilitar la interpretación
+
+df_imputed$cluster3 = df_normalized$cluster3
+
+
+
+
+## RESUMEN ESTADÍSTICO
+
+# Crea una lista con los nombres de las columnas numéricas
+numeric_vars = c("age", "TSH", "T3", "TT4", "T4U", "FTI")  # Asegúrate de ajustar esto a tus columnas numéricas
+
+# Crea una función para obtener las estadísticas descriptivas de cada cluster
+get_cluster_summary <- function(cluster_num) {
+  df_imputed %>%
+    filter(cluster3 == cluster_num) %>%
+    summarise(across(numeric_vars, list(mean = mean, sd = sd, median = median, IQR = IQR)))
+}
+
+# Usa purrr::map_dfr para aplicar la función a cada cluster y combina los resultados en un solo DataFrame
+cluster_summaries = purrr::map_dfr(1:3, get_cluster_summary, .id = "Cluster")
+
+# Crear una copia de df_imputed
+df_bool = df_imputed
+
+# Variables a excluir
+excluded_vars = c('age', 'TSH', 'T3', 'TT4', 'T4U', 'FTI')
+
+# Excluir las variables
+df_bool = df_bool[, !(names(df_bool) %in% excluded_vars)]
+
+# Función para contar 0 y 1 por variable
+count_zero_one = function(var) {
+  df_bool %>%
+    group_by(cluster3) %>%
+    summarise(zero_count = sum(.data[[var]] == 0, na.rm = TRUE),
+              one_count = sum(.data[[var]] == 1, na.rm = TRUE)) %>%
+    mutate(variable = var)
+}
+
+# Aplicar la función a cada variable
+summary_bool = lapply(names(df_bool), count_zero_one)
+
+# Combinar todos los dataframes en uno solo
+summary_bool = do.call(rbind, result)
 
