@@ -231,11 +231,18 @@ fviz_nbclust(df_normalized, FUNcluster = pam, diss = dist(df_normalized, method 
 
 
 ## K-means ##
-# Se ejecuta el modelo para el número óptimo
+# Se ejecuta el modelo para k = 3 y k = 7
 clusters3_model = pam(df_normalized, 3, diss = FALSE, metric = "manhattan")
+clusters7_model = pam(df_normalized, 7, diss = FALSE, metric = "manhattan")
 
 # Asignar los clusters a los datos
 df_normalized$cluster3 = clusters3_model$clustering
+df_normalized$cluster7 = clusters7_model$clustering
+
+## Se pasan las variables de clusterización al DF original y así facilitar la interpretación
+df_imputed$cluster3 = df_normalized$cluster3
+df_imputed$cluster7 = df_normalized$cluster7
+
 
 # Gráfico de pacientes por cluster
 ggplot(df_imputed, aes(x = factor(cluster3))) +
@@ -248,12 +255,15 @@ ggplot(df_imputed, aes(x = factor(cluster3))) +
   theme_minimal()
 
 
-
-## Se pasan las variables de clusterización al DF original y así facilitar la interpretación
-
-df_imputed$cluster3 = df_normalized$cluster3
-
-
+# Gráfico de pacientes por cluster
+ggplot(df_imputed, aes(x = factor(cluster7))) +
+  geom_bar(fill = "steelblue") +
+  labs(
+    x = "Cluster",
+    y = "N° Pacientes",
+    title = "Número de pacientes por cluster"
+  ) +
+  theme_minimal()
 
 
 ## RESUMEN ESTADÍSTICO
@@ -268,8 +278,17 @@ get_cluster_summary <- function(cluster_num) {
     summarise(across(numeric_vars, list(mean = mean, sd = sd, median = median, IQR = IQR)))
 }
 
+
+get_cluster_summary_k7 <- function(cluster_num) {
+  df_imputed %>%
+    filter(cluster7 == cluster_num) %>%
+    summarise(across(numeric_vars, list(mean = mean, sd = sd, median = median, IQR = IQR)))
+}
+
+
 # Usa purrr::map_dfr para aplicar la función a cada cluster y combina los resultados en un solo DataFrame
 cluster_summaries = purrr::map_dfr(1:3, get_cluster_summary, .id = "Cluster")
+cluster7_summaries = purrr::map_dfr(1:7, get_cluster_summary_k7, .id = "Cluster")
 
 # Crear una copia de df_imputed
 df_bool = df_imputed
@@ -289,9 +308,38 @@ count_zero_one = function(var) {
     mutate(variable = var)
 }
 
+count_zero_one_k7 = function(var) {
+  df_bool %>%
+    group_by(cluster7) %>%
+    summarise(zero_count = sum(.data[[var]] == 0, na.rm = TRUE),
+              one_count = sum(.data[[var]] == 1, na.rm = TRUE)) %>%
+    mutate(variable = var)
+}
+
+
+
 # Aplicar la función a cada variable
 summary_bool = lapply(names(df_bool), count_zero_one)
+summary_bool_k7 = lapply(names(df_bool), count_zero_one_k7)
 
 # Combinar todos los dataframes en uno solo
-summary_bool = do.call(rbind, result)
+summary_bool = do.call(rbind, summary_bool)
+summary_bool_k7 = do.call(rbind, summary_bool_k7)
+
+## CORRPLOTS
+
+# Crear subconjuntos de datos para cada cluster
+cluster1 = df_imputed[df_imputed$cluster3 == 1, ]
+cluster2 = df_imputed[df_imputed$cluster3 == 2, ]
+cluster3 = df_imputed[df_imputed$cluster3 == 3, ]
+
+# Variables de interés
+numeric_vars = c("age", "TSH", "T3", "TT4", "T4U", "FTI")
+
+# Gráficos de pares para cada cluster
+ggpairs(cluster1[numeric_vars]) + ggtitle("Cluster 1")
+ggpairs(cluster2[numeric_vars]) + ggtitle("Cluster 2")
+ggpairs(cluster3[numeric_vars]) + ggtitle("Cluster 3")
+
+
 
