@@ -183,6 +183,11 @@ mean_age <- mean(df_imputed$age[df_imputed$age != 455])
 # se reemplaza el valor 455 por el promedio
 df_imputed$age[index] <- mean_age
 
+
+
+## Se guarda el DF imputado para su uso en futuras experiencias
+write.csv(df_imputed, 'data/imputed_allhyper.csv', row.names = FALSE)
+
 ### NORMALIZACIÓN ###
 
 ## Se crea una función de normalización de columnas con el método min-max
