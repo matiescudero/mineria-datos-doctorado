@@ -39,6 +39,27 @@ imputed_allhyper = read_csv("data/imputed_allhyper.csv",
 categorical_df = imputed_allhyper
 
 
+## Se eliminan columnas
+
+# Se calcula el porcentaje de valores 'FALSO' o 0 en cada columna
+percentage_false = colMeans(categorical_df == 'FALSO' | categorical_df == 0)
+
+# Se seleccionan las columnas donde más del 98% de los datos son 'FALSO' o 0
+columns_to_remove <- names(percentage_false[percentage_false > 0.98])
+
+# Se eliminan estas columnas del DF
+categorical_df = categorical_df[ , !(names(categorical_df) %in% columns_to_remove)]
+
+
+# Además se remueven variables de medición para evitar ruido
+categorical_df = subset(categorical_df, 
+                        select = !colnames(categorical_df) %in% 
+                          c("on_thyroxine", "sick", "query_hypothyroid", "query_hyperthyroid",
+                            "tumor", "psych", "TSH_measured", "T3_measured", "TT4_measured",
+                            "T4U_measured", "FTI_measured"))
+
+
+
 ## VARIABLES NUMÉRICAS ##
 
 # Se transforma la columna "age" en categorías
@@ -60,10 +81,7 @@ for (var in clin_vars) {
 ## VARIABLES BOOLEANAS ##
 
 # Lista de columnas booleanas
-bool_vars = c("sex", "on_thyroxine", "query_on_thyroxine", "on_antithyroid_medication", "sick",
-               "pregnant", "thyroid_surgery", "I131_treatment", "query_hypothyroid", "query_hyperthyroid", "lithium", 
-               "goitre", "tumor", "hypopituitary", "psych", "TSH_measured", "T3_measured", "TT4_measured", 
-               "T4U_measured", "FTI_measured", "hyperthiroid")
+bool_vars = c("sex", "hyperthiroid")
 
 # se definen las etiquetas para las categorías de cada variable
 bool_labels = list("sex" = c("Mujer", "Hombre"),
@@ -83,6 +101,10 @@ for (var in bool_vars) {
 
 
 #### CREACIÓN REGLAS ####
+
+# Se convierten las columnas a factores
+categorical_df[] = lapply(categorical_df, factor)
+
 # Se convierten los datos en una transacción
 
 transacciones = as(categorical_df, "transactions")
@@ -92,7 +114,21 @@ summary(transacciones)
 
 
 # Se generan reglas de asociación con apriori
-reglas = apriori(transacciones, parameter = list(supp = 0.01, conf = 0.7))
+reglas = apriori(transacciones, parameter = list(supp = 0.05, conf = 0.7))
 
 # Visualizar el resumen de las reglas
 summary(reglas)
+
+# Reglas ordenadas por calidad
+reglas_ordenadas = reglas[order(-reglas@quality$confidence, -reglas@quality$lift, -reglas@quality$support)]
+inspect(reglas_ordenadas[1:20])
+
+
+reglas_sin_hyper_false = subset(reglas_ordenadas, !rhs %in% "hyperthiroid=Sin Hipertiroidismo")
+inspect(reglas_sin_hyper_false[1:20])  # inspect the top 20 rules
+
+
+
+
+
+plot(reglas_sin_hyper_false, method = "scatterplot", measure = c("support", "confidence"), shading = "lift")
