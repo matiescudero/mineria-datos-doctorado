@@ -121,14 +121,12 @@ summary(reglas)
 
 # Reglas ordenadas por calidad
 reglas_ordenadas = reglas[order(-reglas@quality$confidence, -reglas@quality$lift, -reglas@quality$support)]
-inspect(reglas_ordenadas[1:20])
+inspect(reglas_ordenadas[!is.redundant(reglas_ordenadas)][1:20])
 
 
 reglas_sin_hyper_false = subset(reglas_ordenadas, !rhs %in% "hyperthiroid=Sin Hipertiroidismo")
 inspect(reglas_sin_hyper_false[1:20])  # inspect the top 20 rules
 
+reglas_hyper = subset(reglas_ordenadas, rhs %in% "hyperthiroid=Con Hipertiroidismo")
+inspect(reglas_hyper)
 
-
-
-
-plot(reglas_sin_hyper_false, method = "scatterplot", measure = c("support", "confidence"), shading = "lift")
